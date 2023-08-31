@@ -123,7 +123,8 @@ int RfidTben_hf::Rfid_changeStartAddr(uint32_t addr, ModbusAddress MBaddr) { //t
 	uint16_t temp[2];
 	memcpy(temp, &addr, 2);
 	wc = writeModbus(MBaddr, temp[0]);
-	wc = writeModbus((MBaddr + 1), temp[1]);
+	//wc = writeModbus((MBaddr + 1), temp[1]);
+	wc = writeModbus((MBaddr + 1), 0);
 	return wc;
 }
 
@@ -290,30 +291,16 @@ string RfidTben_hf::parseHFuid(int channel) {
 	return uidDetected;
 }
 
-string RfidTben_hf::parseHFuserdata(int channel) {
+string RfidTben_hf::parseHFuserdata(uint16_t readLen) {
 	string userdataDetected = "";
-	int i;
-	switch (channel) {
-	case 0:
-		hfbus_readTagPresent(ch0_tagPresentAt);
-		readrwLength(ch0_rwlength);
-		break;
-	case 1:
-		hfbus_readTagPresent(ch1_tagPresentAt);
-		readrwLength(ch1_rwlength);
-		break;
-	default:
-		return "-1";
+	for (int i = 0; i < readLen; i++) {
+		userdataDetected = userdataDetected + (char)(databuffer[i]);
 	}
-
-	for (i = 0; i < rwlength/2; i++) {
-		userdataDetected = userdataDetected + wordToAscii(awRFID_input[i]);
-	}
-	std::cout << "User Data:" << userdataDetected << " at read head:" << tagPresentwhere <<"\n";
+	std::cout << "userdataDetected: " << userdataDetected << " at read head:" << tagPresentwhere << "\n";
 	return userdataDetected;
 }
 
-uint32_t RfidTben_hf::Rfid_ReadData(int channel, int antennaNumber, uint16_t byteLen) {
+uint32_t RfidTben_hf::Rfid_ReadData(int channel, int antennaNumber, uint16_t byteLen, uint16_t startaddr = 0) {
 	//step 0: Set Idle intermediate state (Changing to a different state is required for successive read)
 	//step 1: Set antenna number to read
 	//step 2: Create 'Length' to length of data to read. Don't set starting address!!!
@@ -325,6 +312,8 @@ uint32_t RfidTben_hf::Rfid_ReadData(int channel, int antennaNumber, uint16_t byt
 	switch (channel) {
 	case 0:
 		Rfid_changeMode(Idle, ch0_commandCode);
+		SLEEP(SLEEP_TIME);
+		Rfid_changeStartAddr(startaddr, ch0_startAddr);
 		SLEEP(SLEEP_TIME);
 		Rfid_changeAntenna(antennaNumber, ch0_AntennaNo);
 		SLEEP(SLEEP_TIME);
@@ -340,6 +329,8 @@ uint32_t RfidTben_hf::Rfid_ReadData(int channel, int antennaNumber, uint16_t byt
 		return 0;
 	case 1:
 		Rfid_changeMode(Idle, ch1_commandCode);
+		SLEEP(SLEEP_TIME);
+		Rfid_changeStartAddr(startaddr, ch1_startAddr);
 		SLEEP(SLEEP_TIME);
 		Rfid_changeAntenna(antennaNumber, ch1_AntennaNo);
 		SLEEP(SLEEP_TIME);
@@ -358,59 +349,12 @@ uint32_t RfidTben_hf::Rfid_ReadData(int channel, int antennaNumber, uint16_t byt
 	}
 }
 
-uint32_t RfidTben_hf::Rfid_ReadData(int channel, uint16_t byteLen) {
+
+int RfidTben_hf::Rfid_WriteData(int channel, int antennaNumber, uint16_t byteLen, uint16_t startaddr = 0) {
 	//step 0: Set Idle intermediate state (Changing to a different state is required for successive read)
 	//step 1: Set antenna number to read
-	//step 2: Create 'Length' to length of data to read. Don't set starting address!!!
-	//step 3: Send command
-	//step 4: Read 'inpput process buffer' for response
-	uint32_t result;
-	uint16_t wordlength = byteLen / 2 + (byteLen & 1);
-
-	switch (channel) {
-	case 0:
-		hfbus_readTagPresent(ch0_tagPresentAt);
-		SLEEP(SLEEP_TIME); 
-		Rfid_changeMode(Idle, ch0_commandCode);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeAntenna(tagPresentwhere, ch0_AntennaNo);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeByteLength(byteLen, ch0_length);//read doubleword
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Read, ch0_commandCode);
-		SLEEP(SLEEP_TIME);
-		do {
-			Rfid_readResponseCode(ch0_responseCode);
-		} while (xEC_Busy);
-		hfbus_readUserData(wordlength, ch0_inputTag);
-		SLEEP(SLEEP_TIME);
-		return 0;
-	case 1:
-		hfbus_readTagPresent(ch1_tagPresentAt);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Idle, ch1_commandCode);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeAntenna(tagPresentwhere, ch1_AntennaNo);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeByteLength(byteLen, ch1_length);//read doubleword
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Read, ch1_commandCode);
-		SLEEP(SLEEP_TIME);
-		do {
-			Rfid_readResponseCode(ch1_responseCode);
-		} while (xEC_Busy);
-		hfbus_readUserData(wordlength, ch1_inputTag);
-		SLEEP(SLEEP_TIME);
-		return 0;
-	default:
-		return -1;
-	}
-}
-
-int RfidTben_hf::Rfid_WriteData(int channel, int antennaNumber, uint16_t byteLen) {
-	//step 0: Set Idle intermediate state (Changing to a different state is required for successive read)
-	//step 1: Set antenna number to read
-	//step 2: Create 'Length' to length of data to read. Don't set starting address!!!
+	//step 2: Create 'Length' to length of data to read. 
+	//step 3: set starting address!!!
 	//step 4: write 'output process buffer' for writing into tag
 	//step 3: Send command
 	
@@ -422,6 +366,8 @@ int RfidTben_hf::Rfid_WriteData(int channel, int antennaNumber, uint16_t byteLen
 		SLEEP(SLEEP_TIME);
 		Rfid_changeAntenna(antennaNumber, ch0_AntennaNo);
 		SLEEP(SLEEP_TIME);
+		Rfid_changeStartAddr(startaddr, ch0_startAddr);
+		SLEEP(SLEEP_TIME);
 		Rfid_changeByteLength(byteLen, ch0_length);//read doubleword
 		SLEEP(SLEEP_TIME);
 		Rfid_changeOutputData(wordlength, ch0_outputData);//read doubleword
@@ -437,58 +383,11 @@ int RfidTben_hf::Rfid_WriteData(int channel, int antennaNumber, uint16_t byteLen
 		SLEEP(SLEEP_TIME);
 		Rfid_changeAntenna(antennaNumber, ch1_AntennaNo);
 		SLEEP(SLEEP_TIME);
+		Rfid_changeStartAddr(startaddr, ch1_startAddr);
+		SLEEP(SLEEP_TIME);
 		Rfid_changeByteLength(byteLen, ch1_length);//read doubleword
-		SLEEP(SLEEP_TIME);
-		Rfid_changeOutputData(wordlength, ch1_outputData);//read doubleword
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Write, ch1_commandCode);
-		SLEEP(SLEEP_TIME);
-		do {
-			Rfid_readResponseCode(ch1_responseCode);
-		} while (xEC_Busy);
-		return 0;
-	default:
-		return -1;
-	}
-}
-
-int RfidTben_hf::Rfid_WriteData(int channel, uint16_t byteLen) {
-	//step 0: Set Idle intermediate state (Changing to a different state is required for successive read)
-	//step 1: Set antenna number to read
-	//step 2: Create 'Length' to length of data to read. Don't set starting address!!!
-	//step 4: write 'output process buffer' for writing into tag
-	//step 3: Send command
-
-	uint16_t wordlength = byteLen / 2 + (byteLen & 1);
-
-	switch (channel) {
-	case 0:
-		hfbus_readTagPresent(ch0_tagPresentAt);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Idle, ch0_commandCode);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeAntenna(tagPresentwhere, ch0_AntennaNo);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeByteLength(byteLen, ch0_length);//read doubleword
 		SLEEP(SLEEP_TIME);
 		Rfid_changeOutputData(wordlength, ch0_outputData);//read doubleword
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Write, ch0_commandCode);
-		SLEEP(SLEEP_TIME);
-		do {
-			Rfid_readResponseCode(ch0_responseCode);
-		} while (xEC_Busy);
-		return 0;
-	case 1:
-		hfbus_readTagPresent(ch1_tagPresentAt);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeMode(Idle, ch1_commandCode);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeAntenna(tagPresentwhere, ch1_AntennaNo);
-		SLEEP(SLEEP_TIME);
-		Rfid_changeByteLength(byteLen, ch1_length);//read doubleword
-		SLEEP(SLEEP_TIME);
-		Rfid_changeOutputData(wordlength, ch1_outputData);//read doubleword
 		SLEEP(SLEEP_TIME);
 		Rfid_changeMode(Write, ch1_commandCode);
 		SLEEP(SLEEP_TIME);
@@ -504,6 +403,27 @@ int RfidTben_hf::Rfid_WriteData(int channel, uint16_t byteLen) {
 /**************************************************************************/
 /******************		User-defined functions		***********************/
 /**************************************************************************/
+
+
+int RfidTben_hf::Rfid_MultiWrite(int channel, int antennaNumber, uint16_t byteLen) {
+	uint16_t addrstart = 0;
+	do {
+		memcpy(awRFID_output, &databuffer[addrstart], DATA_BYTELENTH);
+		Rfid_WriteData(channel, antennaNumber, DATA_BYTELENTH, addrstart);
+		addrstart += DATA_BYTELENTH;
+	} while (byteLen > addrstart);
+	return 0;
+}
+
+int RfidTben_hf::Rfid_MultiRead(int channel, int antennaNumber, uint16_t byteLen) {
+	uint16_t addrstart = 0;
+	do {
+		Rfid_ReadData(channel, antennaNumber, DATA_BYTELENTH, addrstart);
+		memcpy(&databuffer[addrstart], awRFID_input, DATA_BYTELENTH);
+		addrstart += DATA_BYTELENTH;
+	} while (byteLen > addrstart);
+	return 0;
+}
 
 //assume the tag follows the following format: LQ14x14ONL000001**(32bitinteger)
 //assume the tag is already in position

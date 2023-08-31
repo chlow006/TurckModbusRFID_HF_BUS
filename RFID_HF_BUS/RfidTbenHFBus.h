@@ -18,7 +18,8 @@ Note for usage, unless explicitly mentioned, all length are in bytes, not word
 #define SLEEP_TIME 50ms
 #define SLEEP(a) std::this_thread::sleep_for(a)
 
-#define DATA_BYTELENTH 22
+#define MAX_BYTELENTH 500
+#define DATA_BYTELENTH 128
 #define EPC_BYTELENTH 16
 
 extern "C" {
@@ -98,9 +99,11 @@ public:
 
 
 #endif
-	
-	uint16_t awRFID_input[64];
-	uint16_t awRFID_output[64];
+
+	uint8_t databuffer[MAX_BYTELENTH];
+
+	uint16_t awRFID_input[DATA_BYTELENTH /2];
+	uint16_t awRFID_output[DATA_BYTELENTH /2];
 	uint16_t tagPresentwhere;
 	uint16_t rwlength;
 	uint16_t uidlength;
@@ -150,13 +153,13 @@ public:
 
 	//derived functions
 	string parseHFuid(int channel);
-	string parseHFuserdata(int channel);
-	uint32_t Rfid_ReadData(int channel, uint16_t byteLen);
-	uint32_t Rfid_ReadData(int channel, int antennaNumber, uint16_t byteLen);
-	int Rfid_WriteData(int channel, uint16_t byteLen);
-	int Rfid_WriteData(int channel, int antennaNumber, uint16_t byteLen);
+	string parseHFuserdata(uint16_t readLen);
+	uint32_t Rfid_ReadData(int channel, int antennaNumber, uint16_t byteLen, uint16_t startaddr);
+	int Rfid_WriteData(int channel, int antennaNumber, uint16_t byteLen, uint16_t startaddr);
 
 	//User-defined functions
+	int Rfid_MultiWrite(int channel, int antennaNumber, uint16_t byteLen);
+	int Rfid_MultiRead(int channel, int antennaNumber, uint16_t byteLen);
 	int incrementCount(int channel);
 	int initCount(int channel);
 

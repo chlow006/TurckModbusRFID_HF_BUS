@@ -11,7 +11,7 @@ extern "C"{
 #define SLEEP_TIME 500ms
 #define SLEEP(a) std::this_thread::sleep_for(a)
 
-#define DLENTH 22
+#define DLENTH 500
 
 
 using namespace std::chrono_literals;
@@ -29,12 +29,14 @@ int main()
 	int ch = 0;
 	char charInput = 0;
 	uint16_t tagPresentwhere;
+	int tagAntennaToWrite;
+	string stringdataToWrite;
 
 	RfidTben_hf mock2;
 
 	std::cout << "This is sample test program for TBEN_S2_2RFID_4DXP\n";
 	std::cout << "Connecting via modbus to TBEN_S2_2RFID_4DXP\n";
-	if (mock2.connectModbus("192.168.1.35") != 0) {
+	if (mock2.connectModbus("192.168.1.30") != 0) {
 		std::cout << "Connection failed. Please check hardware and resolve error. Exiting program\n";
 	}
 	else {
@@ -49,6 +51,7 @@ int main()
 				std::cin.ignore(); //discard input
 			}
 		} while (ch != 0 && ch != 1);
+
 
 		RfidTben_hf::ModbusAddress chX_commandCode;
 		RfidTben_hf::ModbusAddress chX_startAddr;
@@ -83,14 +86,6 @@ int main()
 		while (true) {
 			int option = display_options();
 			int loopCount = 0;
-			char input2 = '0';
-			uint32_t input3;
-			int input4;
-			uint32_t input5;
-			uint8_t epcChange[DLENTH] = { 0x4c,0x51,0x31,0x34,0x78,0x31,0x34,0x4f,
-								0x4e,0x4c,0x30,0x30,0x30,0x30,0x30,(uint8_t)'1',
-								(uint8_t)'*',(uint8_t)'*',0,0,0,0};
-			uint16_t * intptr = mock2.awRFID_input;
 			switch (option) {
 			case 1:
 				mock2.Rfid_changeMode(RfidTben_hf::Idle, chX_commandCode);
@@ -103,14 +98,31 @@ int main()
 				mock2.parseHFuid(ch);
 				break;
 			case 4:
-				//mock2.hfbus_readTagPresent(chX_tagPresentAt);
-				mock2.Rfid_ReadData(ch, DLENTH);
-				mock2.parseHFuserdata(ch);
+				mock2.hfbus_readTagPresent(chX_tagPresentAt);
+				//mock2.Rfid_ReadData(ch, mock2.tagPresentwhere, DLENTH,0);
+				mock2.Rfid_MultiRead(ch, mock2.tagPresentwhere, DLENTH);
+				mock2.parseHFuserdata(DLENTH);
 				break;
 			case 5:
-				//mock2.hfbus_readTagPresent(chX_tagPresentAt);
-				memcpy(mock2.awRFID_output, epcChange, DLENTH);
-				mock2.Rfid_WriteData(ch, DLENTH);
+				do
+				{
+					std::cout << "Please key in antenna number: ";
+					if (!(std::cin >> tagAntennaToWrite)) {//error occurred
+						std::cout << "invalid input" << std::endl;
+						std::cin.clear();//Clear the error
+						std::cin.ignore(); //discard input
+					}
+				} while (tagAntennaToWrite < 1 && tagAntennaToWrite > 32);
+				
+				std::cout << "Please key in ID to write: ";
+				if (!(std::cin >> stringdataToWrite)) {//error occurred
+					std::cout << "invalid input" << std::endl;
+					std::cin.clear();//Clear the error
+					std::cin.ignore(); //discard input
+				}
+				memset(mock2.databuffer, 0, DLENTH);//reset all data in buffer to zero
+				memcpy(mock2.databuffer, stringdataToWrite.c_str(), stringdataToWrite.length());
+				mock2.Rfid_MultiWrite(ch, tagAntennaToWrite, DLENTH);
 				break;
 			case 6:
 				mock2.incrementCount(ch);
